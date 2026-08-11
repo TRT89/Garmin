@@ -1,5 +1,6 @@
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { DemoControls } from '@/components/settings/DemoControls';
 import { env, garminDisabledReason, isGarminConfigured } from '@/lib/env';
 import { prisma } from '@/lib/db';
 
@@ -43,6 +44,19 @@ export default async function SettingsPage() {
             </Badge>
           </li>
         </ul>
+      </Card>
+
+      <Card
+        title="Demo data"
+        subtitle="Try every feature without a Garmin account"
+        info="The demo athlete is generated locally from a fixed seed, so the same data is produced every time. Every record is stored as demo data and labelled as such throughout the application."
+      >
+        <p className="mb-4 text-xs leading-relaxed text-ink-muted">
+          Loads twelve weeks of training and daily health data for a fictional marathon runner,
+          including a deliberately poor recovery week and an unusually hard long run so the
+          adaptive features have something real to react to.
+        </p>
+        <DemoControls enabled={env.demoMode} />
       </Card>
 
       <Card title="Database" subtitle="A single local SQLite file — nothing is uploaded anywhere">
