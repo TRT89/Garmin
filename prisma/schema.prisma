@@ -1,0 +1,313 @@
+// Garmin AI Coach — database schema
+//
+// Storage is a single local SQLite file (see DATABASE_URL in .env). There is no
+// cloud database and no account to create.
+//
+// Two SQLite/Prisma limitations shape this file, so it is worth stating up front:
+//   1. SQLite does not support Prisma `enum`s  -> "enum-like" columns are `String`
+//      and the allowed values live in src/lib/constants.ts as TypeScript unions.
+//   2. SQLite does not support the `Json` scalar -> JSON columns are `String?`
+//      holding serialised JSON, read/written through the helpers in src/lib/json.ts.
+//
+// This is a single-user personal application: there is no authentication and the
+// app always works with the first (and only) User row.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Athlete profile
+// ---------------------------------------------------------------------------
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  age            Int?
+  sex            String? // "male" | "female" | "other" — used only for the TRIMP coefficient
+  height         Float? // centimetres
+  weight         Float? // kilograms
+  maxHR          Int? // beats per minute
+  restingHR      Int? // beats per minute
+  preferredUnits String   @default("metric") // "metric" | "imperial"
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  activities   Activity[]
+  dailyHealth  DailyHealth[]
+  goals        TrainingGoal[]
+  chatMessages ChatMessage[]
+}
+
+// ---------------------------------------------------------------------------
+// Activities
+// ---------------------------------------------------------------------------
+
+model Activity {
+  id         String @id @default(cuid())
+  userId     String
+  // Stable id from the originating system. Combined with `source` this makes
+  // re-syncing the same activity idempotent instead of creating duplicates.
+  externalId String
+
+  date  DateTime
+  sport String // see SPORTS in src/lib/constants.ts ("running" | "cycling" | "swimming" | "other")
+  title String
+
+  // Core metrics. Everything is nullable on purpose: a value is null when the
+  // source did not provide it. We never substitute a guess for a missing metric.
+  duration      Int // seconds — the one field always present
+  distance      Float? // metres
+  avgHR         Int?
+  maxHR         Int?
+  avgPace       Float? // seconds per kilometre (running / swimming)
+  avgSpeed      Float? // metres per second (cycling)
+  elevationGain Float? // metres
+  calories      Int?
+  cadence       Float? // running: steps/min; cycling: rev/min
+  averagePower  Float? // watts
+  normalizedPower Float? // watts
+
+  // Metrics supplied by the device/API. These stay null unless Garmin (or a FIT
+  // file) actually reported them — they are Garmin's numbers, not ours.
+  aerobicTrainingEffect   Float?
+  anaerobicTrainingEffect Float?
+
+  // Our own transparent training-load figure (see src/analytics/trainingLoad.ts).
+  // Always surfaced in the UI as "AI Coach calculated", never as a Garmin metric.
+  trainingLoad       Float?
+  trainingLoadMethod String? // "trimp" | "pace" — how trainingLoad was derived
+
+  source  String // "garmin_api" | "fit_upload" | "demo"
+  // Serialised JSON: the provider payload plus, where available, the sampled
+  // record stream that powers the activity detail charts.
+  rawData String?
+
+  matchedManually Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  splits         ActivitySplit[]
+  plannedWorkout PlannedWorkout?
+
+  @@unique([externalId, source])
+  @@index([userId, date])
+  @@index([sport, date])
+}
+
+model ActivitySplit {
+  id          String @id @default(cuid())
+  activityId  String
+  splitNumber Int // 1-based; normally one per kilometre
+
+  distance  Float? // metres
+  duration  Int? // seconds
+  pace      Float? // seconds per kilometre
+  avgHR     Int?
+  elevation Float? // net elevation change over the split, metres
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, splitNumber])
+}
+
+// ---------------------------------------------------------------------------
+// Daily health / recovery
+// ---------------------------------------------------------------------------
+
+model DailyHealth {
+  id     String   @id @default(cuid())
+  userId String
+  date   DateTime // midnight of the day this record describes
+
+  restingHR     Int?
+  avgHR         Int? // all-day average HR
+  sleepDuration Int? // minutes
+  sleepScore    Int? // 0-100, as reported by the device
+  stress        Int? // 0-100, as reported by the device
+  bodyBattery   Int? // 0-100 readiness-style value, as reported by the device
+  steps         Int?
+  weight        Float? // kilograms
+
+  source String @default("demo")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+// ---------------------------------------------------------------------------
+// Goal and plan
+// ---------------------------------------------------------------------------
+
+model TrainingGoal {
+  id     String @id @default(cuid())
+  userId String
+
+  sport          String // "running" | "cycling" | "triathlon" | "general_fitness"
+  goalType       String // "5k" | "10k" | "half_marathon" | "marathon" | "custom" | "general"
+  eventName      String
+  targetDate     DateTime
+  targetDistance Float? // metres
+  targetTime     Int? // seconds
+  trainingWeeks  Int
+  sessionsPerWeek Int
+  longRunDay     Int    @default(0) // 0 = Sunday … 6 = Saturday
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plans TrainingPlan[]
+}
+
+model TrainingPlan {
+  id     String @id @default(cuid())
+  goalId String
+
+  createdAt DateTime @default(now())
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("active") // "active" | "superseded" | "completed"
+
+  // Plan versioning (spec §17): version 1 is kept forever as the untouched
+  // original so "what did my plan originally say?" is always answerable.
+  version    Int     @default(1)
+  isOriginal Boolean @default(false)
+
+  // Serialised JSON snapshot of the inputs the generator used, so a plan can be
+  // reproduced exactly and the user can see what it was based on.
+  generatorInput String?
+
+  goal        TrainingGoal        @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  workouts    PlannedWorkout[]
+  adaptations TrainingAdaptation[]
+}
+
+model PlannedWorkout {
+  id     String @id @default(cuid())
+  planId String
+
+  date        DateTime
+  weekNumber  Int // 1-based training week
+  phase       String // "BASE" | "BUILD" | "PEAK" | "TAPER"
+  sport       String
+  workoutType String // "EASY" | "LONG_RUN" | "TEMPO" | "INTERVAL" | "RECOVERY" | "REST"
+  description String
+
+  targetDuration Int? // seconds
+  targetDistance Float? // metres
+  targetPaceMin  Float? // seconds per kilometre — fastest end of the target band
+  targetPaceMax  Float? // seconds per kilometre — slowest end of the target band
+  targetHRMin    Int?
+  targetHRMax    Int?
+
+  // Serialised JSON array of workout steps (warm-up, reps, recovery, cool-down).
+  structureJSON String?
+  // Plain-language reason this session exists, shown to the athlete.
+  explanation   String?
+
+  completionStatus String  @default("planned") // "planned" | "completed" | "missed" | "skipped"
+  linkedActivityId String? @unique
+  adaptationReason String?
+
+  // True once the athlete edits/moves this session by hand. The adaptation
+  // engine never overwrites a workout the user has taken control of (spec §13).
+  userModified Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  plan            TrainingPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  linkedActivity  Activity?            @relation(fields: [linkedActivityId], references: [id], onDelete: SetNull)
+  adaptations     TrainingAdaptation[]
+
+  @@index([planId, date])
+}
+
+// ---------------------------------------------------------------------------
+// Adaptation audit trail
+//
+// Every automatic change to the plan writes a row here. The athlete must always
+// be able to see what changed, when, and on the basis of which numbers.
+// ---------------------------------------------------------------------------
+
+model TrainingAdaptation {
+  id        String   @id @default(cuid())
+  planId    String
+  timestamp DateTime @default(now())
+
+  affectedWorkoutId String?
+  outcome           String // "KEEP_PLAN" | "REDUCE_INTENSITY" | "REDUCE_VOLUME" | ...
+
+  // Serialised JSON snapshots of the workout before and after the change.
+  previousWorkout String?
+  updatedWorkout  String?
+
+  // Human-readable explanation shown in "Why did my plan change?".
+  reason String
+  // Serialised JSON of the exact metric values behind the decision, so every
+  // sentence in `reason` can be traced back to a number.
+  metricsUsed String?
+
+  revertedAt DateTime? // set if the athlete undoes the adaptation
+
+  plan            TrainingPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  affectedWorkout PlannedWorkout? @relation(fields: [affectedWorkoutId], references: [id], onDelete: SetNull)
+
+  @@index([planId, timestamp])
+}
+
+// ---------------------------------------------------------------------------
+// AI Coach conversation
+// ---------------------------------------------------------------------------
+
+model ChatMessage {
+  id     String @id @default(cuid())
+  userId String
+
+  role    String // "user" | "assistant"
+  content String
+
+  // Serialised JSON: which tools ran, with which arguments, and what they
+  // returned. This powers the "Data used" panel so every answer is inspectable.
+  toolTrace String?
+  // "ollama" | "deterministic" — how this answer was worded.
+  answeredBy String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Sync history
+// ---------------------------------------------------------------------------
+
+model SyncLog {
+  id        String   @id @default(cuid())
+  startedAt DateTime @default(now())
+  finishedAt DateTime?
+
+  source  String // which provider ran: "demo" | "fit_upload" | "garmin_api"
+  status  String @default("running") // "running" | "success" | "failed"
+  message String?
+
+  // Serialised JSON: the per-step report of syncPipeline() shown in the UI.
+  steps String?
+
+  activitiesImported Int @default(0)
+  healthRecordsImported Int @default(0)
+  workoutsMatched    Int @default(0)
+  adaptationsMade    Int @default(0)
+}

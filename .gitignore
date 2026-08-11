@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+build/
+next-env.d.ts
+
+# Production
+dist/
+
+# Environment files — NEVER commit real credentials
+.env
+.env.local
+.env.*.local
+
+# Database (created locally by `npm run setup`)
+prisma/dev.db
+prisma/dev.db-journal
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Uploaded FIT files
+uploads/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Test / coverage
+coverage/
+.vitest/
+
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Screenshots produced during verification
+screenshots/

@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    @apply bg-base text-ink antialiased;
+  }
+
+  body {
+    /* A very faint radial wash keeps the near-black background from looking flat. */
+    background-image: radial-gradient(
+      1200px 600px at 50% -10%,
+      rgba(74, 222, 128, 0.05),
+      transparent 70%
+    );
+    background-attachment: fixed;
+  }
+
+  /* Numbers line up in tables and KPI readouts. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-line;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a4150;
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-accent/60 ring-offset-2 ring-offset-base;
+  }
+}
+
+@layer components {
+  /* Shared card shell used across the dashboard, plan and activity pages. */
+  .card {
+    @apply rounded-card border border-line bg-surface shadow-card;
+  }
+
+  .card-hover {
+    @apply transition-colors hover:border-line-strong hover:bg-surface-raised;
+  }
+
+  /* Small uppercase label above a KPI value. */
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.14em] text-ink-faint;
+  }
+}
