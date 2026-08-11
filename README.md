@@ -20,6 +20,7 @@ create. Your data never leaves your computer.
 - [Importing your own activities](#importing-your-own-activities)
 - [Turning on the AI Coach](#turning-on-the-ai-coach)
 - [Connecting your Garmin account](#connecting-your-garmin-account)
+- [Testing that it works](#testing-that-it-works)
 - [Troubleshooting](#troubleshooting)
 - [How it works](#how-it-works)
 - [For developers](#for-developers)
@@ -233,6 +234,21 @@ Once you have been approved:
 The connector is fully structured and ready for those details. Until they are supplied it
 reports itself as not configured and the app routes around it — it never invents data to cover
 the gap.
+
+---
+
+## Testing that it works
+
+`TESTING.md` is a twenty-minute walk-through that checks every part of the application, with
+the expected result at each step so you can tell pass from fail. Start there if you want to
+confirm the installation is sound before trusting it with your training.
+
+The short version:
+
+```bash
+npm test        # 223 unit tests
+npm run dev     # then load the demo athlete and follow TESTING.md
+```
 
 ---
 
