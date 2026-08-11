@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { DemoControls } from '@/components/settings/DemoControls';
@@ -5,7 +7,7 @@ import { FitUpload } from '@/components/settings/FitUpload';
 import { ProfileForm } from '@/components/settings/ProfileForm';
 import { DataTransfer } from '@/components/settings/DataTransfer';
 import { SyncButton } from '@/components/SyncButton';
-import { env, garminDisabledReason, isGarminConfigured } from '@/lib/env';
+import { env, isGarminConfigured, isGarminConnectConfigured } from '@/lib/env';
 import { getUser, prisma } from '@/lib/db';
 import { getLastSync, describeSyncAge } from '@/garmin/syncPipeline';
 import { getLLMProvider } from '@/ai/llm/ollama';
@@ -28,6 +30,19 @@ export default async function SettingsPage() {
   const garmin = new GarminProvider();
   const garminReady = garmin.isConfigured();
   const credentialsPresent = isGarminConfigured();
+  const connectReady = isGarminConnectConfigured();
+
+  // Show enough of the address to confirm which account, without printing it in
+  // full on a screen someone might be sharing.
+  const maskedEmail = (() => {
+    const [name = '', domain = ''] = env.garminConnect.email.split('@');
+    if (!domain) return env.garminConnect.email;
+    const shown = name.slice(0, 2);
+    return `${shown}${'•'.repeat(Math.max(1, name.length - 2))}@${domain}`;
+  })();
+
+  // The password is only re-sent when there is no cached session.
+  const sessionCached = existsSync(path.join(process.cwd(), '.garmin-session.json'));
 
   return (
     <div className="space-y-6">
@@ -69,10 +84,70 @@ export default async function SettingsPage() {
           <SyncButton lastSynced={describeSyncAge(lastSync?.startedAt ?? null)} />
         </Card>
 
-        {/* --- Garmin ----------------------------------------------------- */}
+        {/* --- Garmin Connect sign-in (unofficial) ------------------------- */}
+        <Card
+          title="Garmin Connect sign-in"
+          subtitle="Your ordinary Garmin account — unofficial"
+          action={
+            <Badge tone={connectReady ? 'good' : 'neutral'}>
+              {connectReady ? 'Signed in' : 'Not configured'}
+            </Badge>
+          }
+        >
+          {connectReady ? (
+            <>
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Account</dt>
+                  <dd className="font-mono text-xs text-ink">{maskedEmail}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Session</dt>
+                  <dd className="text-xs text-ink">
+                    {sessionCached ? 'Cached — password not resent' : 'Not yet established'}
+                  </dd>
+                </div>
+              </dl>
+              <p className="mt-3 text-xs leading-relaxed text-ink-muted">
+                Press <span className="text-ink">Sync Garmin</span> above to import your
+                activities and daily health data.
+              </p>
+            </>
+          ) : (
+            <div className="space-y-2 text-xs leading-relaxed text-ink-muted">
+              <p>
+                Add your Garmin email and password to <code>.env</code> as{' '}
+                <code>GARMIN_CONNECT_EMAIL</code> and <code>GARMIN_CONNECT_PASSWORD</code>, then
+                restart the app.
+              </p>
+            </div>
+          )}
+
+          <div className="mt-4 space-y-1.5 border-t border-line pt-4 text-xs leading-relaxed text-ink-faint">
+            <p className="text-caution">Worth knowing before you rely on this:</p>
+            <ul className="ml-4 list-disc space-y-1">
+              <li>
+                These endpoints are undocumented, so Garmin can break this connection without
+                notice. It will tell you when that happens rather than failing quietly.
+              </li>
+              <li>Automated access this way is likely contrary to Garmin&apos;s terms of service.</li>
+              <li>It cannot sign in if your account uses two-factor authentication.</li>
+              <li>
+                Stress and Body Battery are not readable this way, so they are recorded as
+                missing rather than estimated.
+              </li>
+              <li>
+                Your password stays in <code>.env</code> on this machine. It is never logged,
+                never stored in the database and never sent anywhere except Garmin.
+              </li>
+            </ul>
+          </div>
+        </Card>
+
+        {/* --- Garmin official API ---------------------------------------- */}
         <Card
           title="Garmin Connect API"
-          subtitle="Optional — requires approval from Garmin"
+          subtitle="Official — requires approval from Garmin"
           action={
             <Badge tone={garminReady ? 'good' : 'neutral'}>
               {garminReady ? 'Connected' : 'Not configured'}
@@ -83,6 +158,12 @@ export default async function SettingsPage() {
             {garmin.unavailableReason() ??
               'The connector is configured and can sync activities and health data directly from Garmin.'}
           </p>
+          {connectReady && !garminReady && (
+            <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+              You are using the unofficial sign-in above instead, which needs no approval. This
+              official route takes priority automatically if you ever configure it.
+            </p>
+          )}
 
           {!garminReady && (
             <div className="mt-4 space-y-2 border-t border-line pt-4 text-xs text-ink-faint">

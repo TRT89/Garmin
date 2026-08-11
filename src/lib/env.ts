@@ -35,6 +35,17 @@ export const env = {
     ),
   },
 
+  /**
+   * Garmin Connect sign-in, for the unofficial connector.
+   *
+   * This is your ordinary Garmin account password. It is read from .env, which
+   * is git-ignored, and is never logged or written to the database.
+   */
+  garminConnect: {
+    email: str(process.env.GARMIN_CONNECT_EMAIL),
+    password: str(process.env.GARMIN_CONNECT_PASSWORD),
+  },
+
   ollama: {
     baseUrl: str(process.env.OLLAMA_BASE_URL, 'http://localhost:11434'),
     model: str(process.env.OLLAMA_MODEL, 'llama3.1:8b'),
@@ -49,6 +60,11 @@ export const env = {
  */
 export function isGarminConfigured(): boolean {
   return Boolean(env.garmin.enabled && env.garmin.clientId && env.garmin.clientSecret);
+}
+
+/** True when the unofficial Garmin Connect sign-in has been configured. */
+export function isGarminConnectConfigured(): boolean {
+  return Boolean(env.garminConnect.email && env.garminConnect.password);
 }
 
 /** A human-readable explanation of why the Garmin connector is unavailable. */

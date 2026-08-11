@@ -19,7 +19,7 @@ create. Your data never leaves your computer.
 - [Trying it without a Garmin account](#trying-it-without-a-garmin-account)
 - [Importing your own activities](#importing-your-own-activities)
 - [Turning on the AI Coach](#turning-on-the-ai-coach)
-- [Connecting the Garmin API](#connecting-the-garmin-api)
+- [Connecting your Garmin account](#connecting-your-garmin-account)
 - [Troubleshooting](#troubleshooting)
 - [How it works](#how-it-works)
 - [For developers](#for-developers)
@@ -180,9 +180,44 @@ different model, set `OLLAMA_MODEL` in your `.env` file to match.
 
 ---
 
-## Connecting the Garmin API
+## Connecting your Garmin account
 
-**This is optional and most people will not need it** — FIT upload gives you the same data.
+There are two routes. Pick one.
+
+### Option A — Sign in with your Garmin account (works immediately)
+
+Add your ordinary Garmin Connect email and password to `.env`:
+
+```
+GARMIN_CONNECT_EMAIL="you@example.com"
+GARMIN_CONNECT_PASSWORD="your-garmin-password"
+```
+
+Restart the app (`Ctrl + C`, then `npm run dev`) and press **Sync Garmin** in Settings. It
+imports your activities, downloads the original recording for recent ones so you get splits and
+charts, and reads your sleep, resting heart rate and steps.
+
+**Read this before relying on it.** This route uses endpoints Garmin has never documented, via
+the community-maintained `garmin-connect` package:
+
+- Garmin can change these endpoints at any time and the connection will stop working. The app
+  will tell you clearly when that happens rather than failing quietly or making data up.
+- Automated access this way is likely contrary to Garmin's terms of service. It is your account
+  and your data, but the decision is yours to make knowingly.
+- **It cannot sign in if your account has two-factor authentication enabled.** Use FIT upload
+  instead in that case.
+- Stress and Body Battery are not readable this way. They are recorded as missing rather than
+  estimated, so the recovery analysis simply uses fewer indicators.
+- Your password stays in `.env`, which git ignores. It is never logged and never written to the
+  database. After the first sign-in the session is cached to `.garmin-session.json` (also
+  git-ignored) so your password is not sent on every sync.
+
+If you upgraded from an earlier version, your existing `.env` will not have these two lines —
+copy them from `.env.example`.
+
+### Option B — The official Garmin API (needs approval)
+
+**Most people will not need this** — FIT upload and Option A both give you the same data.
 
 Garmin's Activity and Health APIs are not public. Access requires approval through the
 [Garmin Connect Developer Program](https://developer.garmin.com/gc-developer-program/), after
@@ -232,6 +267,18 @@ That is expected unless you installed Ollama, and the coach still works. See
 **Ollama is installed but the app cannot see it**
 Check `ollama serve` is running in its own Terminal window, and that the model named in `.env`
 matches one from `ollama list`.
+
+**Garmin sync says it could not reach Garmin**
+Your credentials were never checked — the connection failed first. Check your internet, and
+whether a VPN or corporate firewall is blocking `connect.garmin.com`.
+
+**Garmin sync says my credentials were rejected**
+Check the two lines in `.env`. If your Garmin account has two-factor authentication enabled,
+this route cannot sign in at all — use FIT upload instead.
+
+**Garmin sync stopped working after months of being fine**
+Likely Garmin changed something on their side; these endpoints are undocumented. Try updating
+the library with `npm install garmin-connect@latest`. FIT upload always keeps working.
 
 **I want to move my data to another computer**
 **Settings → Database → Export data** writes one JSON file with everything in it. On the other

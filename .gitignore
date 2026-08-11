@@ -28,6 +28,9 @@ prisma/dev.db-journal
 # Uploaded FIT files
 uploads/
 
+# Cached Garmin Connect session tokens — never commit
+.garmin-session.json
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

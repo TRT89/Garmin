@@ -20,6 +20,7 @@
     "@prisma/client": "6.19.3",
     "clsx": "2.1.1",
     "date-fns": "4.1.0",
+    "garmin-connect": "^1.6.2",
     "next": "15.5.23",
     "react": "19.2.0",
     "react-dom": "19.2.0",
