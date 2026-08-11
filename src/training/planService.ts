@@ -110,9 +110,17 @@ export async function generateAndStorePlan(
   goalId: string,
   goal: CreateGoalInput,
 ) {
+  // The plan is counted back from the event so the final week is race week.
   const countBack = startOfWeek(addDays(goal.targetDate, -(goal.trainingWeeks - 1) * 7));
   const thisWeek = startOfWeek(new Date());
-  const startDate = countBack.getTime() < thisWeek.getTime() ? thisWeek : countBack;
+
+  // Two cases start the plan immediately instead: the count-back lands in the
+  // past (the event is sooner than the requested number of weeks allows), or it
+  // lands within the next week — in which case someone setting a goal today
+  // means to start now, not to wait around for a Monday.
+  const startsWithinAWeek = countBack.getTime() <= addDays(thisWeek, 7).getTime();
+  const startDate =
+    countBack.getTime() < thisWeek.getTime() || startsWithinAWeek ? thisWeek : countBack;
 
   const { input, snapshot } = await buildPlanInput(userId, goal, startDate);
   const generated = generatePlan(input);

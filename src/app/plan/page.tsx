@@ -6,11 +6,15 @@ import { Stat } from '@/components/ui/Stat';
 import { Badge, PhaseBadge } from '@/components/ui/Badge';
 import { Progress } from '@/components/ui/Progress';
 import { WorkoutCard } from '@/components/plan/WorkoutCard';
+import { AdaptationHistory } from '@/components/plan/AdaptationHistory';
+import { SyncButton } from '@/components/SyncButton';
 import { findUser } from '@/lib/db';
 import { daysBetween, startOfWeek, addDays } from '@/lib/dates';
 import { formatDate, formatDistance, formatNumber, formatPaceRange } from '@/lib/format';
 import { parseJSON } from '@/lib/json';
 import { getActivePlan } from '@/training/planService';
+import { getAdaptationHistory } from '@/training/adaptationService';
+import { getLastSync, describeSyncAge } from '@/garmin/syncPipeline';
 import { phaseGoal } from '@/training/phases';
 import {
   complianceToDate,
@@ -47,6 +51,11 @@ export default async function PlanPage() {
   const { goal, plan } = active;
   const workouts = plan.workouts;
   const now = new Date();
+
+  const [adaptations, lastSync] = await Promise.all([
+    getAdaptationHistory(plan.id),
+    getLastSync(),
+  ]);
 
   // The plan may not have started yet — it is counted back from the event date,
   // so training often begins next week rather than today. Saying "Week 1, now"
@@ -90,6 +99,15 @@ export default async function PlanPage() {
           </ButtonLink>
         </div>
       </div>
+
+      {/* --- Sync --------------------------------------------------------- */}
+      <Card
+        title="Sync"
+        subtitle="Import new training, then re-evaluate the plan"
+        info="A sync retrieves new data, recalculates your metrics, matches completed sessions to your plan, and considers whether upcoming sessions should change."
+      >
+        <SyncButton lastSynced={describeSyncAge(lastSync?.startedAt ?? null)} />
+      </Card>
 
       {/* --- Where you are in the plan ------------------------------------ */}
       <Card bodyClassName="p-5">
@@ -274,6 +292,9 @@ export default async function PlanPage() {
           </table>
         </div>
       </Card>
+
+      {/* --- Why the plan changed ------------------------------------------ */}
+      <AdaptationHistory records={adaptations} />
 
       {/* --- How this plan was built --------------------------------------- */}
       {generator.notes && generator.notes.length > 0 && (
