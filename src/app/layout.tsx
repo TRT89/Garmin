@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Nav } from '@/components/Nav';
+import { CoachDock } from '@/components/coach/CoachDock';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -13,7 +14,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen">
         <Nav />
-        <main className="mx-auto max-w-[1400px] px-6 py-8">{children}</main>
+        <main className="mx-auto max-w-[1400px] px-6 py-8 pb-24">{children}</main>
+        <CoachDock />
       </body>
     </html>
   );
