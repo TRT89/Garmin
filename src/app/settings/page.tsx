@@ -1,6 +1,7 @@
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { DemoControls } from '@/components/settings/DemoControls';
+import { FitUpload } from '@/components/settings/FitUpload';
 import { env, garminDisabledReason, isGarminConfigured } from '@/lib/env';
 import { prisma } from '@/lib/db';
 
@@ -44,6 +45,14 @@ export default async function SettingsPage() {
             </Badge>
           </li>
         </ul>
+      </Card>
+
+      <Card
+        title="FIT file upload"
+        subtitle="Import real activities from your watch or Garmin Connect"
+        info="FIT is the format Garmin devices record in. Files are decoded with Garmin's own free SDK, and any metric the file does not contain is stored as missing rather than estimated."
+      >
+        <FitUpload />
       </Card>
 
       <Card

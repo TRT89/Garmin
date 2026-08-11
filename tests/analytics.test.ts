@@ -456,3 +456,58 @@ describe('trends', () => {
     expect(trend.summary).toContain('not yet enough');
   });
 });
+
+describe('assessRecovery window boundaries', () => {
+  /** Health records are dated at midnight, as they are in the database. */
+  const midnight = (offset: number) => {
+    const d = new Date(2026, 5, 15);
+    d.setDate(d.getDate() + offset);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const record = (offset: number, overrides = {}) => ({
+    date: midnight(offset),
+    restingHR: 48,
+    sleepDuration: 440,
+    sleepScore: 82,
+    stress: 30,
+    bodyBattery: 76,
+    steps: 10000,
+    ...overrides,
+  });
+
+  it('counts every day when asked at an arbitrary time of day', () => {
+    // Three raised days, and "now" is midday rather than midnight — the case
+    // that previously dropped a day between the two comparison windows.
+    const records = [
+      ...Array.from({ length: 14 }, (_, i) => record(-i - 3)),
+      ...Array.from({ length: 3 }, (_, i) => record(-i, { restingHR: 56 })),
+    ];
+
+    const asOf = new Date(midnight(0));
+    asOf.setHours(11, 30, 0, 0);
+
+    const status = assessRecovery(records, asOf);
+
+    // All three raised days must be in the recent window, giving the full delta.
+    expect(status.restingHR.current).toBe(56);
+    expect(status.restingHR.delta).toBe(8);
+  });
+
+  it('gives the same answer at midnight and at midday', () => {
+    const records = [
+      ...Array.from({ length: 14 }, (_, i) => record(-i - 3)),
+      ...Array.from({ length: 3 }, (_, i) => record(-i, { sleepDuration: 360 })),
+    ];
+
+    const atMidnight = assessRecovery(records, midnight(0));
+
+    const atMidday = new Date(midnight(0));
+    atMidday.setHours(13, 0, 0, 0);
+
+    expect(assessRecovery(records, atMidday).sleepDuration.delta).toBe(
+      atMidnight.sleepDuration.delta,
+    );
+  });
+});

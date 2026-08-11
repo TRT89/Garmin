@@ -193,3 +193,30 @@ describe('splits', () => {
     }
   });
 });
+
+describe('recent fatigue scenario', () => {
+  const data = generateDemoData({ weeks: 12, endDate: END, seed: DEMO_SEED });
+
+  it('leaves the adaptive engine exactly two indicators to act on', () => {
+    // Two is the engine's minimum for changing anything, and it produces a
+    // proportionate adjustment rather than the drastic one three would.
+    const status = assessRecovery(data.health, END);
+
+    expect(status.negativeIndicators).toBe(2);
+    expect(status.status).toBe('moderate');
+  });
+
+  it('raises resting heart rate and shortens sleep, and nothing else', () => {
+    const status = assessRecovery(data.health, END);
+    const evidence = status.evidence.join(' ');
+
+    expect(evidence).toContain('Resting heart rate');
+    expect(evidence).toContain('Sleep');
+    expect(evidence).not.toContain('stress');
+  });
+
+  it('does not disturb the earlier poor-recovery week', () => {
+    const weekFiveEnd = addDays(END, -7 * 7 - 1);
+    expect(assessRecovery(data.health, weekFiveEnd).status).toBe('compromised');
+  });
+});

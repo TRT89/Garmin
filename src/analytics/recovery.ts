@@ -9,7 +9,7 @@
  * from a personal baseline and nothing more.
  */
 
-import { addDays, dateKey, isWithin } from '@/lib/dates';
+import { addDays, dateKey, endOfDay, isWithin, startOfDay } from '@/lib/dates';
 
 export interface HealthRecord {
   date: Date;
@@ -49,9 +49,15 @@ function compareToBaseline(
   recentDays = 3,
   baselineDays = 14,
 ): BaselineComparison {
-  const recentStart = addDays(asOf, -(recentDays - 1));
-  const baselineStart = addDays(recentStart, -baselineDays);
-  const baselineEnd = addDays(recentStart, -1);
+  // Snap every boundary to whole days. Health records are dated at midnight
+  // while `asOf` is usually the current time, and comparing the two directly
+  // would drop the day on the seam between the two windows — it would fall
+  // after the baseline ended but before the recent window began, and be counted
+  // in neither.
+  const recentStart = startOfDay(addDays(asOf, -(recentDays - 1)));
+  const recentEnd = endOfDay(asOf);
+  const baselineStart = startOfDay(addDays(recentStart, -baselineDays));
+  const baselineEnd = endOfDay(addDays(recentStart, -1));
 
   const valueOf = (record: HealthRecord): number | null => {
     const value = record[field];
@@ -59,7 +65,7 @@ function compareToBaseline(
   };
 
   const recentValues = records
-    .filter((r) => isWithin(r.date, recentStart, asOf))
+    .filter((r) => isWithin(r.date, recentStart, recentEnd))
     .map(valueOf)
     .filter((v): v is number => v != null);
 

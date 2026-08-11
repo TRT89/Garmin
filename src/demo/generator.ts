@@ -107,6 +107,17 @@ const SCENARIOS = {
   HARD_LONG_RUN_WEEK: 8,
   /** A notably strong tempo session — clear evidence of progress. */
   STRONG_TEMPO_WEEK: 10,
+  /**
+   * A dip in the final few days, so the adaptive engine has something to react
+   * to as soon as the demo is loaded.
+   *
+   * Tuned deliberately to trip exactly two indicators — raised resting heart
+   * rate and short sleep — and no more. Two is the engine's minimum for acting
+   * at all, and it produces a proportionate adjustment rather than the drastic
+   * one that three indicators would. Sleep score, stress and readiness are
+   * moved by less than their thresholds on purpose.
+   */
+  RECENT_FATIGUE_DAYS: 4,
 } as const;
 
 /** Total aerobic-speed improvement across the whole block (4%). */
@@ -660,6 +671,24 @@ export function generateDemoData(options: DemoOptions = {}): DemoData {
 
   activities.sort((a, b) => a.date.getTime() - b.date.getTime());
   health.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  // --- Scenario: a dip over the last few days -----------------------------
+  // Applied after the fact so it lands on whichever days are most recent,
+  // whatever length of history was generated. See RECENT_FATIGUE_DAYS.
+  const fatigueFrom = addDays(endDate, -(SCENARIOS.RECENT_FATIGUE_DAYS - 1));
+  for (const record of health) {
+    if (record.date.getTime() < fatigueFrom.getTime()) continue;
+
+    if (record.restingHR != null) record.restingHR += 5; // threshold is 3
+    // 70 rather than 45: the baseline window overlaps the dip by a day and
+    // night-to-night variance is wide, so a smaller cut does not reliably clear
+    // the threshold.
+    if (record.sleepDuration != null) record.sleepDuration -= 70;
+    // Deliberately under their thresholds, so they do not become indicators.
+    if (record.sleepScore != null) record.sleepScore = Math.max(0, record.sleepScore - 5);
+    if (record.stress != null) record.stress = Math.min(100, record.stress + 5);
+    if (record.bodyBattery != null) record.bodyBattery = Math.max(0, record.bodyBattery - 6);
+  }
 
   return { profile: DEMO_PROFILE, activities, health };
 }
